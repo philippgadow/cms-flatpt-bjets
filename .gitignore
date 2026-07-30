@@ -1,0 +1,9 @@
+releases/
+*.root
+*.log
+test_*/
+fullchain_*/
+calibration/output/
+validation/output/
+condor/logs/
+__pycache__/
