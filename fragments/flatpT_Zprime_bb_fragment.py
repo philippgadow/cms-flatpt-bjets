@@ -48,8 +48,8 @@ generator = cms.EDFilter("Pythia8GeneratorFilter",
         cms.PSet(
             pluginName = cms.string('ZprimeFlatpTHook'),
             # weightpT = exp(p0 + p1*sqrt(sHat)); calibrated in calibration/
-            p0 = cms.double(-8.95719),
-            p1 = cms.double(1.62584e-03),
+            p0 = cms.double(-15.5771),
+            p1 = cms.double(1.35874e-03),
             # sqrt(sHat) [GeV] above which the weight is zero (13.6 TeV beam)
             MaxSHat = cms.double(13600.),
             # Optional low-mass decay weight, disabled by default

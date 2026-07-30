@@ -115,10 +115,24 @@ instead of ~13 GB.
 
 ### Measured for CMS at 13.6 TeV
 
-With BW removal only, the CMS spectrum falls with `c1 ≈ −1.25e−3 /GeV`
-(NNPDF3.1 NNLO, CP5), giving `p1 ≈ +1.25e−3` — measurably different from the
-ATLAS 13 TeV value of `+1.626e−3`, which is why recalibration is mandatory.
-See `calibration/output/` for the current fit.
+50k GEN events per pass, CP5 / NNPDF3.1 NNLO, fit over 200–13600 GeV:
+
+| Pass | `p1` used | fitted slope `c1` [1/GeV] | events in range |
+|------|-----------|---------------------------|-----------------|
+| A (BW removal only) | 0 | −1.19526e−3 ± 6.2e−6 | 84.0% |
+| B | +1.19526e−3 | −1.63486e−4 ± 1.7e−6 | 97.9% |
+| C | +1.35874e−3 | see `calibration/output/passC_fit.json` | |
+
+The ATLAS 13 TeV value `+1.626e−3` is ~36% steeper than what CMS needs at
+13.6 TeV, which is why recalibration is mandatory rather than optional.
+
+One iteration is normally needed: Pass A's linear fit is made on a spectrum
+that is still strongly falling, so the extracted slope is slightly
+underestimated. Pass B reduces the residual slope by ~7×; the correction is
+additive, `p1(new) = p1(old) − c1(measured)`.
+
+**Current fragment values** (`fragments/flatpT_Zprime_bb_fragment.py`):
+`p0 = −15.5771`, `p1 = +1.35874e−3`.
 
 ## Batch production
 
