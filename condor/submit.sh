@@ -18,9 +18,14 @@
 #   --flavour F     JobFlavour (default testmatch = 3 days)
 #   --dry-run       write the submit file and print the command, do not submit
 #
+# Timing: 20 events without pileup took ~7 min at 8 threads on an interactive
+# node, i.e. ~20 s/event.  A batch node at 4 threads is slower and premix adds
+# more, so budget generously: espresso (20 min) only fits a ~20-event smoke
+# test, and 500-event production jobs need testmatch.
+#
 # Examples:
-#   ./submit.sh --njobs 1 --nevents 20 --no-pileup --flavour espresso   # smoke test
-#   ./submit.sh --njobs 200 --nevents 500                              # 100k events
+#   ./submit.sh --njobs 1 --nevents 20 --no-pileup --flavour microcentury  # smoke test
+#   ./submit.sh --njobs 200 --nevents 500                                  # 100k events
 
 set -e
 
@@ -90,6 +95,18 @@ echo "════════════════════════�
 
 mkdir -p "$EOSDIR"
 
+# Disk: measured ~4 MB/event without pileup for the sum of all intermediates
+# (GEN-SIM 1.3 + RAW 1.9 + AOD 0.5 + Mini 0.2 + Nano 0.13 MB/evt).  Premix
+# roughly triples the RAW step, so budget 15 MB/event there, and keep a 5 GB
+# floor for the release/scratch overhead.
+# PILEUPFLAG is non-empty when --no-pileup was given.
+if [ -n "$PILEUPFLAG" ]; then
+    PER_EVENT_KB=4000     # measured, no pileup
+else
+    PER_EVENT_KB=15000    # premix inflates the RAW step
+fi
+DISK_KB=$(( NEVENTS * PER_EVENT_KB + 5000000 ))
+
 CMD=(condor_submit "$SCRIPT_DIR/submit.sub"
      -append "REPODIR = $REPO_DIR"
      -append "EOSDIR = $EOSDIR"
@@ -102,7 +119,7 @@ CMD=(condor_submit "$SCRIPT_DIR/submit.sub"
      -append "FLAVOUR = $FLAVOUR"
      -append "NCPUS = $NTHREADS"
      -append "MEMORY = $(( NTHREADS * 2000 ))"
-     -append "DISK = 10000000")
+     -append "DISK = $DISK_KB")
 
 if [ "$DRYRUN" = true ]; then
     echo ""
