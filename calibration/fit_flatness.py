@@ -125,10 +125,18 @@ def main():
     print("    p0 = cms.double(%.6g)," % p0_new)
     print("    p1 = cms.double(%.6g)," % p1_new)
     print("=" * 62)
+    # Report the physical size of the residual slope, not just its
+    # significance: at 50k events any residual is many sigma, so significance
+    # alone is a misleading measure of flatness.
+    target_hi = min(7000.0, args.max)
+    spread = math.exp(abs(c1) * (target_hi - args.min))
     print()
-    print("Pass B should then give c1 ~ 0 within its uncertainty.")
-    print("Residual slope significance in THIS pass: %.1f sigma"
+    print("residual non-flatness in THIS pass:")
+    print("  spectrum varies by a factor %.3g over %.0f .. %.0f GeV"
+          % (spread, args.min, target_hi))
+    print("  (slope significance %.1f sigma -- expected to be large at high"
           % (abs(c1) / c1_err if c1_err > 0 else float("nan")))
+    print("   statistics even when the spectrum is flat enough in practice)")
 
     if args.plot:
         canvas = ROOT.TCanvas("c", "c", 900, 700)

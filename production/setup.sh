@@ -64,8 +64,16 @@ PYEOF
 
     echo "  building (this takes a few minutes the first time) ..."
     pushd "$CMSSW_BASE/src" > /dev/null
-    scram b -j 12 2>&1 | grep -iE "^gmake.*Error|error:" && {
-        echo "ERROR: build failed"; popd > /dev/null; return 1; }
+    # Judge the build by scram's exit status, not by grepping its output: a
+    # failure whose message does not match a hand-written pattern would
+    # otherwise pass silently.
+    local BUILD_LOG="$CMSSW_BASE/scram_build.log"
+    if ! scram b -j 12 > "$BUILD_LOG" 2>&1; then
+        echo "ERROR: build failed. Last lines of $BUILD_LOG:"
+        grep -iE "error|Error" "$BUILD_LOG" | head -20
+        popd > /dev/null
+        return 1
+    fi
     popd > /dev/null
 
     local NREG

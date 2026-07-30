@@ -6,6 +6,9 @@
 # Usage: ./test_local.sh [nevents]
 
 set -e
+# The gen-level check is piped through grep; without pipefail a crash in the
+# check would be hidden behind grep's exit status.
+set -o pipefail
 
 NEVENTS=${1:-10}
 
@@ -27,6 +30,9 @@ echo "════════════════════════�
 
 echo ""
 echo "──── generator-level check ────"
+# The step script sets up its release inside a pushd/popd, so re-apply the
+# CMSSW environment here: FWLite is not importable without it.
+setup_release "$CMSSW_GS"
 python3 "$REPO_DIR/validation/dump_genparticles.py" "$TESTDIR/${SAMPLE}_GEN-SIM.root" \
     2>&1 | grep -viE "^Warning|libGL|TClass|Info in"
 

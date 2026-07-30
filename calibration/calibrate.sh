@@ -75,28 +75,53 @@ echo "──── Fitting Pass B (closure test) ────"
 fit_pass "$OUTDIR/passB_GEN.root" passB
 
 # ─── Summary ────────────────────────────────────────────────────────────────
-python3 - "$OUTDIR" <<'PYEOF'
-import json, sys
-outdir = sys.argv[1]
+python3 - "$OUTDIR" "$FITMIN" "$FITMAX" <<'PYEOF'
+import json, math, sys
+outdir, fitmin, fitmax = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
 a = json.load(open(f"{outdir}/passA_fit.json"))
 b = json.load(open(f"{outdir}/passB_fit.json"))
-sig = abs(b["c1"]) / b["c1_err"] if b["c1_err"] else float("nan")
+
+# Judge flatness by how much the spectrum actually varies, NOT by the
+# significance of the slope: with O(50k) events the statistical precision is so
+# good that any residual is many sigma, so a sigma-based criterion would never
+# converge even when the spectrum is flat for all practical purposes.
+def spread(c1, lo, hi):
+    return math.exp(abs(c1) * (hi - lo))
+
+# The physics target is a flat spectrum up to ~7 TeV.
+TARGET_HI = min(7000.0, fitmax)
+spread_a = spread(a["c1"], fitmin, TARGET_HI)
+spread_b = spread(b["c1"], fitmin, TARGET_HI)
+# p1 corrections are additive: the new one stacks on what Pass B already used.
+p1_next = a["p1_recommended"] + b["p1_recommended"]
+n = 1000
+acc = sum(math.exp(p1_next * (fitmin + (fitmax - fitmin) * (i + 0.5) / n))
+          for i in range(n)) / n
+p0_next = -math.log(acc)
+
 print()
 print("=" * 64)
 print("  CALIBRATION SUMMARY")
 print("=" * 64)
-print(f"  Pass A slope c1 = {a['c1']:+.4g} +- {a['c1_err']:.3g} /GeV")
-print(f"  Pass B slope c1 = {b['c1']:+.4g} +- {b['c1_err']:.3g} /GeV  ({sig:.1f} sigma from flat)")
+print(f"  Pass A  c1 = {a['c1']:+.4g} +- {a['c1_err']:.3g} /GeV"
+      f"   spectrum varies x{spread_a:.3g} up to {TARGET_HI:.0f} GeV")
+print(f"  Pass B  c1 = {b['c1']:+.4g} +- {b['c1_err']:.3g} /GeV"
+      f"   spectrum varies x{spread_b:.3g} up to {TARGET_HI:.0f} GeV")
+print(f"  in-range fraction: pass A {100.*a['n_in_range']/a['n_events']:.1f}%"
+      f" -> pass B {100.*b['n_in_range']/b['n_events']:.1f}%")
 print()
-print("  Use in the fragment:")
-print(f"      p0 = cms.double({a['p0_recommended']:.6g}),")
-print(f"      p1 = cms.double({a['p1_recommended']:.6g}),")
-print()
-if sig < 3:
-    print("  => Pass B is flat within 3 sigma. Calibration converged.")
+# A factor <2 across 200 GeV..7 TeV is flat enough for a performance sample:
+# per-bin b-tagging statistics then vary by less than the bin-to-bin
+# fluctuation of a realistic sample size.
+if spread_b < 2.0:
+    print(f"  => CONVERGED: flat to within a factor {spread_b:.2f} up to"
+          f" {TARGET_HI:.0f} GeV.")
+    print("     Values currently in the fragment are good.")
 else:
-    print("  => Pass B still sloped (>3 sigma). Iterate: rerun calibrate.sh")
-    print("     after putting the Pass B recommendation into the fragment,")
-    print("     or increase the statistics.")
+    print(f"  => NOT YET FLAT (varies x{spread_b:.3g}). Iterate: put these into")
+    print("     fragments/flatpT_Zprime_bb_fragment.py and rerun with REUSE_PASSA=1:")
+    print()
+    print(f"         p0 = cms.double({p0_next:.6g}),")
+    print(f"         p1 = cms.double({p1_next:.6g}),")
 print("=" * 64)
 PYEOF

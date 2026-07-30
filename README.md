@@ -2,7 +2,7 @@
 
 Private CMS MC production of a **flat b-jet pT sample up to several TeV**, for
 b-tagging performance studies at high pT. Analogous to the CMS "flat QCD"
-samples, but pure b-jets.
+samples, but pure b-jets, following the ATLAS "extended" Z' sample used for flavour tagging.
 
 ## Method
 
@@ -19,7 +19,7 @@ by a weight that
 so √ŝ is generated **flat**. The two b quarks recoil back-to-back with
 pT ≈ √ŝ/2, giving a flat b-jet pT spectrum over the full range.
 
-This follows the ATLAS flat-pT Z' approach; the hook is a port of
+This follows the ATLAS flat-pT Z' approach; the hook is a (vibe-coded) port of
 `Pythia8_i/ZprimeFlatpT.cxx` to the CMSSW `CustomHookFactory` pattern.
 
 > ### ⚠ The sample has no physical normalisation
@@ -51,13 +51,13 @@ cms-flatpt-bjets/
 ## Quick start
 
 Requires lxplus EL9 (`lxplus9*`) or `cmssw-el9`, and a CMS VOMS proxy for
-premixed pileup.
+premixed pileup. Best to run on lxplus or you might have a bad time.
 
 ```bash
 # 1. Releases + build the UserHook (~15 min the first time)
 source production/setup.sh
 
-# 2. Smoke test: 10 events, GEN-SIM
+# 2. Quick test: 10 events, GEN-SIM
 ./production/test_local.sh
 
 # 3. Full chain to NanoAODv15, no pileup (fast)
@@ -73,9 +73,7 @@ python3 validation/validate_nanoaod.py <path to NanoAOD>
 
 ## Production chain
 
-Campaign RunIII2024Summer24, values taken from
-[`philippgadow/cms-hza-eventproducer`](https://github.com/philippgadow/cms-hza-eventproducer)
-`02_signal_production` (validated against McM). All in `production/env.sh`.
+Campaign `RunIII2024Summer24`: all definitions are in `production/env.sh`.
 
 | Step | Script | Release | Global tag |
 |------|--------|---------|-----------|
@@ -115,34 +113,51 @@ instead of ~13 GB.
 
 ### Measured for CMS at 13.6 TeV
 
-50k GEN events per pass, CP5 / NNPDF3.1 NNLO, fit over 200–13600 GeV:
+50k GEN events per pass, CP5 / NNPDF3.1 NNLO, fit over 200–13600 GeV.
+"Spread" is how much the spectrum varies across 200 GeV – 7 TeV, i.e. the
+quantity that actually matters for a performance sample:
 
-| Pass | `p1` used | fitted slope `c1` [1/GeV] | events in range |
-|------|-----------|---------------------------|-----------------|
-| A (BW removal only) | 0 | −1.19526e−3 ± 6.2e−6 | 84.0% |
-| B | +1.19526e−3 | −1.63486e−4 ± 1.7e−6 | 97.9% |
-| C | +1.35874e−3 | see `calibration/output/passC_fit.json` | |
+| Pass | `p1` used | fitted slope `c1` [1/GeV] | spread to 7 TeV | in range |
+|------|-----------|---------------------------|-----------------|----------|
+| A (BW removal only) | 0 | −1.19526e−3 ± 6.2e−6 | ×3390 | 84.0% |
+| B | +1.19526e−3 | −1.63486e−4 ± 1.7e−6 | ×3.04 | 97.9% |
+| **C (converged)** | **+1.35874e−3** | **−3.16475e−5 ± 1.6e−6** | **×1.24** | **98.9%** |
 
-The ATLAS 13 TeV value `+1.626e−3` is ~36% steeper than what CMS needs at
-13.6 TeV, which is why recalibration is mandatory rather than optional.
+**Converged**: the spectrum is flat to within a factor 1.24 up to 7 TeV, down
+from ×3390 uncalibrated.
 
-One iteration is normally needed: Pass A's linear fit is made on a spectrum
-that is still strongly falling, so the extracted slope is slightly
-underestimated. Pass B reduces the residual slope by ~7×; the correction is
-additive, `p1(new) = p1(old) − c1(measured)`.
+The ATLAS 13 TeV value `+1.626e−3` is ~20% steeper than the converged CMS
+13.6 TeV result, which is why recalibration is mandatory.
+
+One iteration is needed because Pass A's linear fit is made on a spectrum that
+is still strongly falling, so the slope is underestimated. Corrections are
+**additive**: `p1(new) = p1(old) − c1(measured)`.
+
+> **Convergence is judged on the spread, not on σ.** At 50k events the
+> statistical precision is so high that even a perfectly usable spectrum sits
+> many σ from flat (Pass C is 19.7σ yet varies by only ×1.24). A σ-based
+> criterion would never converge, so `calibrate.sh` requires a spread below ×2.
 
 **Current fragment values** (`fragments/flatpT_Zprime_bb_fragment.py`):
 `p0 = −15.5771`, `p1 = +1.35874e−3`.
+
+To re-derive after changing beam energy, PDF or `MaxSHat`:
+
+```bash
+./calibration/calibrate.sh                 # Pass A + B
+# put the printed values into the fragment, then close the loop:
+REUSE_PASSA=1 ./calibration/calibrate.sh   # reuses Pass A, regenerates Pass B
+```
 
 ## Batch production
 
 lxplus HTCondor (not CRAB — there is no input dataset at GEN):
 
 ```bash
-# smoke test: one short job
+# quick test: one short job
 ./condor/submit.sh --njobs 1 --nevents 20 --no-pileup --flavour espresso
 
-# real submission (ask before large ones)
+# real submission
 ./condor/submit.sh --njobs 200 --nevents 500
 
 ./condor/status.sh                    # list batches
@@ -173,6 +188,5 @@ Checks, with PDF plots and a text summary in `validation/output/`:
 
 ## References
 
-- Reference chain: [philippgadow/cms-hza-eventproducer](https://github.com/philippgadow/cms-hza-eventproducer)
 - CMS GenProductions: https://github.com/cms-sw/genproductions
 - Pythia 8 UserHooks: https://pythia.org/latest-manual/UserHooks.html
