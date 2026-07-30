@@ -1,0 +1,33 @@
+# HTCondor submit description for cms-flatpt-bjets (lxplus).
+# Generated values are passed in from submit.sh via -append / environment.
+
+universe                = vanilla
+executable              = $(REPODIR)/condor/run_job.sh
+arguments               = $(ProcId) $(NEVENTS) $(SEEDBASE) $(REPODIR) $(EOSDIR) $(PILEUPFLAG)
+
+# The chain needs el9_amd64_gcc12.
+MY.SingularityImage     = "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/el9:x86_64"
+
+output                  = $(LOGDIR)/job_$(ProcId).out
+error                   = $(LOGDIR)/job_$(ProcId).err
+log                     = $(LOGDIR)/cluster_$(ClusterId).log
+
+request_cpus            = $(NCPUS)
+request_memory          = $(MEMORY)
+request_disk            = $(DISK)
+
+# The full chain is minutes per event, so with O(500-1000) events per job we
+# need a long flavour. testmatch = 3 days.
++JobFlavour             = $(FLAVOUR)
+
+# Grid proxy is required for the premix pileup input.
+use_x509userproxy       = true
+x509userproxy           = $(PROXY)
+
+# Do not ship the (huge) release area; jobs read it from the shared AFS path.
+should_transfer_files   = NO
+
+# Retry a failed job twice; batch nodes occasionally fail on AAA reads.
+max_retries             = 2
+
+queue $(NJOBS)
