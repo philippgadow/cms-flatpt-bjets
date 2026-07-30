@@ -60,7 +60,12 @@ PYEOF
         echo "  BuildFile.xml already patched"
     fi
 
+    # Install the production fragment now so that batch jobs never have to
+    # write into the shared release area (see condor/run_job.sh).
     mkdir -p "$CMSSW_BASE/src/Configuration/GenProduction/python"
+    cp "$REPO_DIR/fragments/flatpT_Zprime_bb_fragment.py" \
+       "$CMSSW_BASE/src/Configuration/GenProduction/python/${SAMPLE}.py"
+    echo "  installed fragment as Configuration/GenProduction/python/${SAMPLE}.py"
 
     echo "  building (this takes a few minutes the first time) ..."
     pushd "$CMSSW_BASE/src" > /dev/null

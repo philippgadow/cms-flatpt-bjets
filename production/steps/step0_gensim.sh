@@ -34,12 +34,30 @@ fi
 
 FRAG_NAME="$SAMPLE"
 FRAG_DST="$CMSSW_BASE/src/Configuration/GenProduction/python/${FRAG_NAME}.py"
-mkdir -p "$(dirname "$FRAG_DST")"
-cp "$FRAGMENT" "$FRAG_DST"
 
-pushd "$CMSSW_BASE/src" > /dev/null
-scram b -j "$NTHREADS" > /dev/null 2>&1
-popd > /dev/null
+# Batch jobs share one release area on AFS, so they must NOT all copy the
+# fragment and run `scram b` into it concurrently -- that races on the same
+# files.  Install + build only if the fragment is missing or has changed;
+# production/setup.sh normally does this once, before submission.
+# scram compiles GenProduction python in place under src/, so importability --
+# not a copy under python/ -- is what says it is ready.
+if cmp -s "$FRAGMENT" "$FRAG_DST" \
+   && python3 -c "import Configuration.GenProduction.${FRAG_NAME}" > /dev/null 2>&1; then
+    echo "  fragment already installed and built, reusing"
+else
+    if [ "${ALLOW_FRAGMENT_BUILD:-1}" != "1" ]; then
+        echo "ERROR: fragment not installed in $CMSSW_BASE and building is"
+        echo "       disabled (ALLOW_FRAGMENT_BUILD=0). Run production/setup.sh"
+        echo "       and install the fragment before submitting jobs."
+        exit 1
+    fi
+    echo "  installing + building fragment ..."
+    mkdir -p "$(dirname "$FRAG_DST")"
+    cp "$FRAGMENT" "$FRAG_DST"
+    pushd "$CMSSW_BASE/src" > /dev/null
+    scram b -j "$NTHREADS" > /dev/null 2>&1
+    popd > /dev/null
+fi
 
 cmsDriver.py "Configuration/GenProduction/python/${FRAG_NAME}.py" \
     --python_filename "${CAMPAIGN_GS}_cfg.py" \

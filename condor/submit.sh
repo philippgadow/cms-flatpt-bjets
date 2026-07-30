@@ -74,6 +74,25 @@ if ! grep -q "ZprimeFlatpTHook" "$RELEASE_DIR/$CMSSW_GS/lib/$ARCH/.edmplugincach
     exit 1
 fi
 
+# Jobs are forbidden from building into the shared release area, so the
+# fragment must already be installed there and be importable.  scram compiles
+# GenProduction python in place under src/, so check the import rather than
+# looking for a copy under python/.
+FRAG_SRC="$REPO_DIR/fragments/flatpT_Zprime_bb_fragment.py"
+FRAG_INST="$RELEASE_DIR/$CMSSW_GS/src/Configuration/GenProduction/python/${SAMPLE}.py"
+if ! cmp -s "$FRAG_SRC" "$FRAG_INST"; then
+    echo "ERROR: the fragment in $RELEASE_DIR/$CMSSW_GS is missing or out of date."
+    echo "       Jobs may not build into the shared release area."
+    echo "       Run:  source production/setup.sh gs"
+    exit 1
+fi
+( setup_release "$CMSSW_GS"
+  python3 -c "import Configuration.GenProduction.${SAMPLE}" > /dev/null 2>&1 ) || {
+    echo "ERROR: Configuration.GenProduction.${SAMPLE} is not importable in $CMSSW_GS."
+    echo "       Run:  source production/setup.sh gs"
+    exit 1; }
+echo "  fragment installed and importable in $CMSSW_GS"
+
 TAG="$(date +%Y%m%d_%H%M%S)"
 LOGDIR="$SCRIPT_DIR/logs/$TAG"
 EOSDIR="$EOS_OUTDIR/$TAG"

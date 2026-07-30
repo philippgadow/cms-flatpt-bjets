@@ -34,6 +34,12 @@ mkdir -p "$WORKDIR"
 export RELEASE_DIR="$REPODIR/releases"
 export NTHREADS="${NTHREADS:-4}"
 
+# The release area on AFS is shared read-only between all jobs of a batch.
+# Refuse to build into it from a job: concurrent jobs would race on the same
+# files.  setup.sh must have installed and built the fragment before submission
+# (submit.sh checks the hook; this covers the fragment).
+export ALLOW_FRAGMENT_BUILD=0
+
 "$REPODIR/production/run_fullchain.sh" \
     --nevents "$NEVENTS" \
     --seed "$SEED" \
