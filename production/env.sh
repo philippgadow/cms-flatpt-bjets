@@ -96,6 +96,10 @@ export NTHREADS="${NTHREADS:-4}"
 _ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_DIR="$(cd "$_ENV_DIR/.." && pwd)"
 export RELEASE_DIR="${RELEASE_DIR:-$REPO_DIR/releases}"
+# Anchor for fragments that import repo modules (e.g. gridpacks/grid.py): the
+# installed copy of a fragment lives inside CMSSW, where a __file__-relative
+# path no longer finds the repo.
+export FLATPT_REPO_DIR="$REPO_DIR"
 
 # Resolve the sample now that REPO_DIR is known.  Scripts source env.sh AFTER
 # inheriting an already-resolved sample from their caller, so do NOT clobber a

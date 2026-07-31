@@ -38,8 +38,26 @@ from Configuration.Generator.PSweightsPythia.PythiaPSweightsSettings_cfi import 
 
 # The grid definition is shared with the card/gridpack generation so the
 # fragment can never point at a mass point that was never produced.
-_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(_REPO, "gridpacks"))
+# The grid module must be importable BOTH from the repo checkout and from the
+# copy that setup.sh installs into Configuration/GenProduction/python of the
+# release -- where a path relative to __file__ points into CMSSW, not the repo.
+# FLATPT_REPO_DIR (exported by production/env.sh) is the reliable anchor; the
+# __file__-relative path is the fallback for direct use inside the checkout.
+_CANDIDATES = []
+if os.environ.get("FLATPT_REPO_DIR"):
+    _CANDIDATES.append(os.path.join(os.environ["FLATPT_REPO_DIR"], "gridpacks"))
+_CANDIDATES.append(os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gridpacks"))
+
+for _cand in _CANDIDATES:
+    if os.path.exists(os.path.join(_cand, "grid.py")):
+        sys.path.insert(0, _cand)
+        break
+else:
+    raise RuntimeError(
+        "cannot locate gridpacks/grid.py (tried %s). Set FLATPT_REPO_DIR to the "
+        "cms-flatpt-bjets checkout." % ", ".join(_CANDIDATES))
+
 import grid as gridmod  # noqa: E402
 
 # Base directory holding the gridpack tarballs. Override with the
