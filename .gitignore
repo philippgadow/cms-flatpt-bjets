@@ -13,3 +13,11 @@ __pycache__/
 krb5cc*
 *.cc.krb
 pgadow.cc
+
+# gridpack build area and generated cards (large / reproducible)
+gridpacks/genproductions/
+gridpacks/work/
+gridpacks/cards_generated/
+gridpacks/test_*/
+calibration/output_qcd/
+calibration/output_qcd_scan.log
