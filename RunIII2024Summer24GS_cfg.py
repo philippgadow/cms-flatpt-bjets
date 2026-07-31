@@ -2,7 +2,7 @@
 # using: 
 # Revision: 1.19 
 # Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
-# with command line options: Configuration/GenProduction/python/flatpT_QCD_bb.py --python_filename RunIII2024Summer24GS_cfg.py --eventcontent RAWSIM --customise Configuration/DataProcessing/Utils.addMonitoring --datatier GEN-SIM --fileout file:/tmp/pgadow/claude-80672/-afs-cern-ch-work-p-pgadow-cms-btv-algo/9e939110-b5eb-4bf7-b463-513d8cba010d/scratchpad/qcdbb_GEN-SIM.root --conditions 140X_mcRun3_2024_realistic_v26 --beamspot DBrealistic --step GEN,SIM --geometry DB:Extended --era Run3_2024 --nThreads 4 --customise_commands process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(100)\nprocess.RandomNumberGeneratorService.generator.initialSeed=4242 --mc -n 10
+# with command line options: Configuration/GenProduction/python/flatpT_QCD_incl.py --python_filename RunIII2024Summer24GS_cfg.py --eventcontent RAWSIM --customise Configuration/DataProcessing/Utils.addMonitoring --datatier GEN-SIM --fileout file:/tmp/pgadow/claude-80672/-afs-cern-ch-work-p-pgadow-cms-btv-algo/9e939110-b5eb-4bf7-b463-513d8cba010d/scratchpad/qcdincl_GEN-SIM.root --conditions 140X_mcRun3_2024_realistic_v26 --beamspot DBrealistic --step GEN,SIM --geometry DB:Extended --era Run3_2024 --nThreads 4 --customise_commands process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(100)\nprocess.RandomNumberGeneratorService.generator.initialSeed=7777 --mc -n 10
 import FWCore.ParameterSet.Config as cms
 
 from Configuration.Eras.Era_Run3_2024_cff import Run3_2024
@@ -67,7 +67,7 @@ process.options = cms.untracked.PSet(
 
 # Production Info
 process.configurationMetadata = cms.untracked.PSet(
-    annotation = cms.untracked.string('Configuration/GenProduction/python/flatpT_QCD_bb.py nevts:10'),
+    annotation = cms.untracked.string('Configuration/GenProduction/python/flatpT_QCD_incl.py nevts:10'),
     name = cms.untracked.string('Applications'),
     version = cms.untracked.string('$Revision: 1.19 $')
 )
@@ -85,7 +85,7 @@ process.RAWSIMoutput = cms.OutputModule("PoolOutputModule",
         filterName = cms.untracked.string('')
     ),
     eventAutoFlushCompressedSize = cms.untracked.int32(20971520),
-    fileName = cms.untracked.string('file:/tmp/pgadow/claude-80672/-afs-cern-ch-work-p-pgadow-cms-btv-algo/9e939110-b5eb-4bf7-b463-513d8cba010d/scratchpad/qcdbb_GEN-SIM.root'),
+    fileName = cms.untracked.string('file:/tmp/pgadow/claude-80672/-afs-cern-ch-work-p-pgadow-cms-btv-algo/9e939110-b5eb-4bf7-b463-513d8cba010d/scratchpad/qcdincl_GEN-SIM.root'),
     outputCommands = process.RAWSIMEventContent.outputCommands,
     splitLevel = cms.untracked.int32(0)
 )
@@ -108,10 +108,9 @@ process.generator = cms.EDFilter("Pythia8GeneratorFilter",
             'processParameters'
         ),
         processParameters = cms.vstring(
-            'HardQCD:gg2bbbar = on',
-            'HardQCD:qqbar2bbbar = on',
+            'HardQCD:all = on',
             'PhaseSpace:pTHatMin = 15',
-            'PhaseSpace:pTHatMax = 4000',
+            'PhaseSpace:pTHatMax = 7000',
             'PhaseSpace:bias2Selection = on',
             'PhaseSpace:bias2SelectionPow = 4.5',
             'PhaseSpace:bias2SelectionRef = 15.'
@@ -205,7 +204,7 @@ process = addMonitoring(process)
 # Customisation from command line
 
 process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(100)
-process.RandomNumberGeneratorService.generator.initialSeed=4242
+process.RandomNumberGeneratorService.generator.initialSeed=7777
 # Add early deletion of temporary data products to reduce peak memory need
 from Configuration.StandardSequences.earlyDeleteSettings_cff import customiseEarlyDelete
 process = customiseEarlyDelete(process)
