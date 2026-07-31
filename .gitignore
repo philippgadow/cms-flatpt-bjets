@@ -7,3 +7,9 @@ calibration/output/
 validation/output/
 condor/logs/
 __pycache__/
+
+# Never commit credentials: stray Kerberos ticket caches have appeared here
+# (e.g. pgadow.cc, which is ccache data despite the .cc extension).
+krb5cc*
+*.cc.krb
+pgadow.cc
