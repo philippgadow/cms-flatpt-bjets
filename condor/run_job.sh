@@ -3,7 +3,8 @@
 # HTCondor payload: run the full chain for one job and copy MiniAOD + NanoAOD
 # to EOS.
 #
-# Usage (by condor):  run_job.sh <jobid> <nevents> <seedbase> <repodir> <eosdir> [--no-pileup]
+# Usage (by condor):
+#   run_job.sh <jobid> <nevents> <seedbase> <repodir> <eosdir> <sample> [--no-pileup]
 #
 # Runs inside the el9 container (see submit.sh: +SingularityImage).
 
@@ -14,7 +15,8 @@ NEVENTS=${2:?need nevents}
 SEEDBASE=${3:?need seedbase}
 REPODIR=${4:?need repodir}
 EOSDIR=${5:?need eosdir}
-PILEUP_FLAG="${6:-}"
+SAMPLE_TYPE_ARG=${6:?need sample type}
+PILEUP_FLAG="${7:-}"
 
 # Per-job seed: distinct for every job, reproducible from the job id.
 SEED=$(( SEEDBASE + JOBID ))
@@ -41,6 +43,7 @@ export NTHREADS="${NTHREADS:-4}"
 export ALLOW_FRAGMENT_BUILD=0
 
 "$REPODIR/production/run_fullchain.sh" \
+    --sample "$SAMPLE_TYPE_ARG" \
     --nevents "$NEVENTS" \
     --seed "$SEED" \
     --outdir "$WORKDIR" \
@@ -48,6 +51,9 @@ export ALLOW_FRAGMENT_BUILD=0
 
 # ─── stage out ──────────────────────────────────────────────────────────────
 source "$REPODIR/production/env.sh"
+# env.sh defaults SAMPLE to the Z'; resolve it for THIS job's sample type or
+# the stage-out below would look for the wrong filenames.
+select_sample "$SAMPLE_TYPE_ARG" || exit 1
 
 echo ""
 echo "──── stage out to $EOSDIR ────"

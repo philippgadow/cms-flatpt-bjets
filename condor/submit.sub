@@ -3,7 +3,7 @@
 
 universe                = vanilla
 executable              = $(REPODIR)/condor/run_job.sh
-arguments               = $(ProcId) $(NEVENTS) $(SEEDBASE) $(REPODIR) $(EOSDIR) $(PILEUPFLAG)
+arguments               = $(ProcId) $(NEVENTS) $(SEEDBASE) $(REPODIR) $(EOSDIR) $(SAMPLETYPE) $(PILEUPFLAG)
 
 # The chain needs el9_amd64_gcc12.
 MY.SingularityImage     = "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/el9:x86_64"

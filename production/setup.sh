@@ -60,12 +60,26 @@ PYEOF
         echo "  BuildFile.xml already patched"
     fi
 
-    # Install the production fragment now so that batch jobs never have to
+    # Install EVERY sample's fragment now so that batch jobs never have to
     # write into the shared release area (see condor/run_job.sh).
     mkdir -p "$CMSSW_BASE/src/Configuration/GenProduction/python"
-    cp "$REPO_DIR/fragments/flatpT_Zprime_bb_fragment.py" \
-       "$CMSSW_BASE/src/Configuration/GenProduction/python/${SAMPLE}.py"
-    echo "  installed fragment as Configuration/GenProduction/python/${SAMPLE}.py"
+    # Resolve each sample's (SAMPLE, FRAGMENT) pair in a subshell and read them
+    # back as text.  Calling select_sample inside a subshell and then using
+    # $SAMPLE/$FRAGMENT outside it silently reuses the PARENT's stale values --
+    # which overwrites one sample's fragment with another's content.
+    local TYPE PAIR FRAG_NAME FRAG_PATH
+    for TYPE in zprime qcd-bb qcd-incl grav-hbb; do
+        PAIR=$(select_sample "$TYPE" > /dev/null && printf '%s\t%s' "$SAMPLE" "$FRAGMENT")
+        FRAG_NAME="${PAIR%%$'\t'*}"
+        FRAG_PATH="${PAIR#*$'\t'}"
+        if [ -z "$FRAG_NAME" ] || [ ! -f "$FRAG_PATH" ]; then
+            echo "  ✗ could not resolve fragment for $TYPE"; return 1
+        fi
+        cp "$FRAG_PATH" "$CMSSW_BASE/src/Configuration/GenProduction/python/${FRAG_NAME}.py"
+        echo "  installed $TYPE -> Configuration/GenProduction/python/${FRAG_NAME}.py"
+    done
+    # select_sample was run for real above; restore the default for the caller.
+    select_sample zprime > /dev/null
 
     echo "  building (this takes a few minutes the first time) ..."
     pushd "$CMSSW_BASE/src" > /dev/null

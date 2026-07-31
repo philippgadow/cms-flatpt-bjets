@@ -36,12 +36,14 @@ NJOBS=""
 NEVENTS=""
 SEEDBASE=100000
 PILEUPFLAG=""
+SAMPLE_ARG="zprime"
 FLAVOUR="testmatch"
 DRYRUN=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --njobs)    NJOBS="$2"; shift ;;
+        --sample)   SAMPLE_ARG="$2"; shift ;;
         --nevents)  NEVENTS="$2"; shift ;;
         --seedbase) SEEDBASE="$2"; shift ;;
         --no-pileup) PILEUPFLAG="--no-pileup" ;;
@@ -55,6 +57,8 @@ done
 [ -z "$NJOBS" ]   && { echo "ERROR: --njobs is required";   exit 1; }
 [ -z "$NEVENTS" ] && { echo "ERROR: --nevents is required"; exit 1; }
 
+select_sample "$SAMPLE_ARG" || exit 1
+
 # ─── pre-flight checks ──────────────────────────────────────────────────────
 # Premix needs a proxy inside the job; check now rather than after queueing.
 if [ -z "$PILEUPFLAG" ]; then
@@ -67,18 +71,38 @@ if [ ! -f "$PROXY" ]; then
     exit 1
 fi
 
-# The hook must be built, or every job fails identically.
-if ! grep -q "ZprimeFlatpTHook" "$RELEASE_DIR/$CMSSW_GS/lib/$ARCH/.edmplugincache" 2>/dev/null; then
-    echo "ERROR: ZprimeFlatpTHook not built in $RELEASE_DIR/$CMSSW_GS."
-    echo "       Run:  source production/setup.sh"
-    exit 1
+# Only the Z' sample uses the custom hook; QCD and the graviton grid do not.
+if [ "$SAMPLE_TYPE" = "zprime" ]; then
+    if ! grep -q "ZprimeFlatpTHook" "$RELEASE_DIR/$CMSSW_GS/lib/$ARCH/.edmplugincache" 2>/dev/null; then
+        echo "ERROR: ZprimeFlatpTHook not built in $RELEASE_DIR/$CMSSW_GS."
+        echo "       Run:  source production/setup.sh"
+        exit 1
+    fi
+fi
+
+# The graviton sample needs its gridpacks readable from the worker nodes.
+if [ "$SAMPLE_TYPE" = "grav-hbb" ]; then
+    NPACK=$(ls "$GRIDPACK_EOS"/BulkGraviton_*tarball.tar.xz 2>/dev/null | wc -l)
+    NPOINTS=$(python3 -c "import sys; sys.path.insert(0,'$REPO_DIR/gridpacks'); import grid; print(len(grid.grid()))")
+    if [ "$NPACK" -eq 0 ]; then
+        echo "ERROR: no gridpacks in $GRIDPACK_EOS."
+        echo "       Run:  ./gridpacks/make_gridpacks.sh --all"
+        exit 1
+    fi
+    if [ "$NPACK" -lt "$NPOINTS" ]; then
+        echo "ERROR: only $NPACK of $NPOINTS gridpacks present in $GRIDPACK_EOS."
+        echo "       Every grid point in the fragment must exist or jobs will"
+        echo "       fail whenever a missing point is drawn."
+        exit 1
+    fi
+    echo "  gridpacks: $NPACK/$NPOINTS present in $GRIDPACK_EOS"
 fi
 
 # Jobs are forbidden from building into the shared release area, so the
 # fragment must already be installed there and be importable.  scram compiles
 # GenProduction python in place under src/, so check the import rather than
 # looking for a copy under python/.
-FRAG_SRC="$REPO_DIR/fragments/flatpT_Zprime_bb_fragment.py"
+FRAG_SRC="$FRAGMENT"
 FRAG_INST="$RELEASE_DIR/$CMSSW_GS/src/Configuration/GenProduction/python/${SAMPLE}.py"
 if ! cmp -s "$FRAG_SRC" "$FRAG_INST"; then
     echo "ERROR: the fragment in $RELEASE_DIR/$CMSSW_GS is missing or out of date."
@@ -94,14 +118,15 @@ fi
 echo "  fragment installed and importable in $CMSSW_GS"
 
 TAG="$(date +%Y%m%d_%H%M%S)"
-LOGDIR="$SCRIPT_DIR/logs/$TAG"
-EOSDIR="$EOS_OUTDIR/$TAG"
+LOGDIR="$SCRIPT_DIR/logs/$SAMPLE_TYPE/$TAG"
+EOSDIR="$EOS_OUTDIR/$SAMPLE_TYPE/$TAG"
 mkdir -p "$LOGDIR"
 
 TOTAL=$(( NJOBS * NEVENTS ))
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  cms-flatpt-bjets condor submission"
+echo "    sample      : $SAMPLE_TYPE ($SAMPLE)"
 echo "    jobs        : $NJOBS"
 echo "    events/job  : $NEVENTS"
 echo "    total events: $TOTAL"
@@ -134,6 +159,7 @@ CMD=(condor_submit "$SCRIPT_DIR/submit.sub"
      -append "NEVENTS = $NEVENTS"
      -append "SEEDBASE = $SEEDBASE"
      -append "PILEUPFLAG = $PILEUPFLAG"
+     -append "SAMPLETYPE = $SAMPLE_TYPE"
      -append "PROXY = $PROXY"
      -append "FLAVOUR = $FLAVOUR"
      -append "NCPUS = $NTHREADS"

@@ -23,6 +23,8 @@ SKIP_TO=0
 PILEUP_FLAG=""
 OUTDIR=""
 
+SAMPLE_ARG="${SAMPLE_TYPE:-zprime}"
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-pileup) PILEUP_FLAG="--no-pileup" ;;
@@ -30,10 +32,14 @@ while [ $# -gt 0 ]; do
         --seed)      SEED="$2"; shift ;;
         --skip-to)   SKIP_TO="$2"; shift ;;
         --outdir)    OUTDIR="$2"; shift ;;
+        --sample)    SAMPLE_ARG="$2"; shift ;;
         *) echo "unknown option: $1"; exit 1 ;;
     esac
     shift
 done
+
+# Sets SAMPLE + FRAGMENT (+ EVENTS_PER_LUMI for the graviton grid).
+select_sample "$SAMPLE_ARG" || exit 1
 
 require_el9 || exit 1
 
@@ -47,7 +53,8 @@ F_MINI="$OUTDIR/${CAMPAIGN_MINI}_${SAMPLE}.root"
 F_NANO="$OUTDIR/${CAMPAIGN_NANO}_${SAMPLE}.root"
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  Full chain: flat-pT Z' -> bb"
+echo "  Full chain: $SAMPLE_TYPE ($SAMPLE)"
+echo "    fragment: $(basename "$FRAGMENT")"
 echo "    events  : $NEVENTS"
 echo "    seed    : $SEED"
 echo "    pileup  : $([ -n "$PILEUP_FLAG" ] && echo no || echo yes)"

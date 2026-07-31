@@ -34,7 +34,59 @@ export CAMPAIGN_RECO="RunIII2024Summer24RECO"
 export CAMPAIGN_MINI="RunIII2024Summer24MiniAODv6"
 export CAMPAIGN_NANO="RunIII2024Summer24NanoAODv15"
 
-export SAMPLE="flatpT_Zprime_bb"
+# ─── Sample types ───────────────────────────────────────────────────────────
+# select_sample <type> sets SAMPLE (file/dir naming) and FRAGMENT (GEN input).
+# Types:
+#   zprime     flat-sqrt(sHat) Z'->bb, custom ZprimeFlatpT hook   [default]
+#   qcd-bb     flat-pT QCD, matrix-element bb-bar
+#   qcd-incl   flat-pT inclusive QCD, all flavours (mistag)
+#   grav-hbb   BulkGraviton->HH->bbbb multigridpack (merged double-b)
+#
+# The Z' path is the validated default and is unchanged by the additions.
+select_sample() {
+    local TYPE="${1:-zprime}"
+    case "$TYPE" in
+        zprime)
+            export SAMPLE="flatpT_Zprime_bb"
+            export FRAGMENT="$REPO_DIR/fragments/flatpT_Zprime_bb_fragment.py"
+            ;;
+        qcd-bb)
+            export SAMPLE="flatpT_QCD_bb"
+            export FRAGMENT="$REPO_DIR/fragments/flatpT_QCD_bb_fragment.py"
+            ;;
+        qcd-incl)
+            export SAMPLE="flatpT_QCD_incl"
+            export FRAGMENT="$REPO_DIR/fragments/flatpT_QCD_incl_fragment.py"
+            ;;
+        grav-hbb)
+            export SAMPLE="BulkGravitonToHHTo4B"
+            export FRAGMENT="$REPO_DIR/fragments/BulkGravitonToHHTo4B_MX-flat_MH-flat_TuneCP5_13p6TeV-madgraph_pythia8_cff.py"
+            # The gridpack is re-run per luminosity block, so this also sets how
+            # many events come from each (mX, mH) point. Smaller than the
+            # default 100 so a job of a given size covers more grid points.
+            # An explicit EVENTS_PER_LUMI in the environment still wins.
+            export EVENTS_PER_LUMI="${EVENTS_PER_LUMI_OVERRIDE:-50}"
+            # Gridpacks must be readable from the worker node.
+            export FLATPT_GRIDPACK_DIR="${GRIDPACK_EOS:-$EOS_OUTDIR/gridpacks}"
+            ;;
+        *)
+            echo "ERROR: unknown sample type '$TYPE'"
+            echo "       valid: zprime | qcd-bb | qcd-incl | grav-hbb"
+            return 1
+            ;;
+    esac
+    export SAMPLE_TYPE="$TYPE"
+}
+
+# Default sample type; SAMPLE/FRAGMENT are resolved below, once REPO_DIR exists.
+export SAMPLE_TYPE="${SAMPLE_TYPE:-zprime}"
+
+# Events per luminosity block. Only the graviton sample cares (it drives how
+# many events are drawn per grid point); the others use the CMS default of 100.
+export EVENTS_PER_LUMI="${EVENTS_PER_LUMI:-100}"
+
+# Where gridpack tarballs live (option B).
+export GRIDPACK_EOS="${GRIDPACK_EOS:-$EOS_OUTDIR/gridpacks}"
 
 # ─── Resources ──────────────────────────────────────────────────────────────
 export NTHREADS="${NTHREADS:-4}"
@@ -44,6 +96,14 @@ export NTHREADS="${NTHREADS:-4}"
 _ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_DIR="$(cd "$_ENV_DIR/.." && pwd)"
 export RELEASE_DIR="${RELEASE_DIR:-$REPO_DIR/releases}"
+
+# Resolve the sample now that REPO_DIR is known.  Scripts source env.sh AFTER
+# inheriting an already-resolved sample from their caller, so do NOT clobber a
+# value that is already set -- otherwise every sub-script silently falls back
+# to the Z' fragment (this bug installed QCD content under the Z' name).
+if [ -z "${SAMPLE:-}" ]; then
+    select_sample "$SAMPLE_TYPE" > /dev/null
+fi
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 

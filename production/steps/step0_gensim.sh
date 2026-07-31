@@ -71,7 +71,7 @@ cmsDriver.py "Configuration/GenProduction/python/${FRAG_NAME}.py" \
     --geometry DB:Extended \
     --era "$ERA" \
     --nThreads "$NTHREADS" \
-    --customise_commands "process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(100)\nprocess.RandomNumberGeneratorService.generator.initialSeed=${SEED}" \
+    --customise_commands "process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(${EVENTS_PER_LUMI:-100})\nprocess.RandomNumberGeneratorService.generator.initialSeed=${SEED}" \
     --mc \
     -n "$NEVENTS"
 
