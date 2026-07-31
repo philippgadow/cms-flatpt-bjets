@@ -210,6 +210,27 @@ Each point is an independent GEN-only job; the script histograms the
 each exponent, and picks the flattest. Outputs land in `calibration/output_qcd/`
 (`bias_scan.pdf`, `bias_scan.json`).
 
+### Scan results (20k events/point, leading GenJet, 100–3000 GeV)
+
+"Spread" is how much the unweighted spectrum varies across the range — the
+quantity that matters, as in the Z' calibration.
+
+| `bias2SelectionPow` | RMS/mean | slope [1/GeV] | spread |
+|---|---|---|---|
+| 4.0 | 2.474 | −5.02e−3 | ×2.1e6 |
+| 4.5 (central Run 2 value) | 2.132 | −3.69e−3 | ×4.4e4 |
+| 5.0 | 1.656 | −2.67e−3 | ×2.3e3 |
+| 5.5 | 1.286 | −1.89e−3 | ×243 |
+
+**The scan is monotonic with no turnover**, so the optimum lies above 5.5 —
+the central 4.5 is clearly too low for ME bb̄ at 13.6 TeV. The scan is being
+extended (6.0–7.0; Pythia allows up to 10). **The fragments still carry the
+placeholder 4.5** and must be updated once the optimum is bracketed.
+
+Note this only affects how uniformly statistics are spread over pT — the
+physics is unchanged, since the compensating `genWeight` makes any weighted
+distribution correct regardless of the exponent.
+
 ## Graviton gridpacks (`grav-hbb`)
 
 This sample needs MadGraph gridpacks — one per (mX, mH) point — before it can
