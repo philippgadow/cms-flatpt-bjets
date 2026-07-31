@@ -1,10 +1,50 @@
 # cms-flatpt-bjets
 
-Private CMS MC production of a **flat b-jet pT sample up to several TeV**, for
+Private CMS MC production of **flat b-jet pT samples up to several TeV**, for
 b-tagging performance studies at high pT. Analogous to the CMS "flat QCD"
 samples, but pure b-jets, following the ATLAS "extended" Z' sample used for flavour tagging.
 
-## Method
+Four sample options cover complementary regions of b-jet phase space — see
+[Sample options](#sample-options). The Z' is the primary, fully validated one;
+run any of them with `--sample <type>`.
+
+## Sample options
+
+| Sample | `--sample` | b-jet topology | Flattening mechanism | Weights | Use case |
+|---|---|---|---|---|---|
+| **Z'→bb̄** (flat √ŝ) | `zprime` | isolated single-b jets, back-to-back, pT ≈ √ŝ/2 | custom `ZprimeFlatpT` UserHook | trial-level σ modified → normalisation unphysical | b-tag efficiency vs pT, clean single-b |
+| **QCD bb̄ flat** | `qcd-bb` | ME b's, radiation, realistic environment | `bias2Selection` on pT-hat | **weighted** (`genWeight`) | b-tag in a QCD-like environment |
+| **QCD inclusive flat** | `qcd-incl` | all flavours: light/g/c **+ gluon-splitting b's** | `bias2Selection` on pT-hat | **weighted** (`genWeight`) | mistag rates for all flavours |
+| **BulkGraviton→HH→bb̄bb̄** | `grav-hbb` | **merged double-b** in one AK4/AK8 jet, ΔR(bb̄) set by mH/mX | discrete (mX, mH) multigridpack scan | per-point `ConfigWeight`; grid is not a physical spectrum | boosted H(bb)/double-b taggers, X→bb̄ |
+
+**Which to use.** For b-tag efficiency vs pT on clean, isolated b jets → `zprime`.
+For the same in a realistic QCD environment → `qcd-bb`. For mistag rates, and
+for b jets from gluon splitting (which a matrix-element bb̄ sample does not
+produce) → `qcd-incl`. For double-b taggers, where both b hadrons share a jet
+→ `grav-hbb`.
+
+**Why three different flattening mechanisms.** Not a style choice:
+`PhaseSpace:bias2Selection` is documented (and enforced) as working for **2 → 2
+processes only** — Pythia aborts otherwise. `ffbar → Z'` is 2 → 1, so it needs
+the custom hook. The graviton grid is a discrete scan and is not flattened at
+all. Details, including why `bias2Selection` was chosen over the central
+`reweightGenEmp`, are in [`fragments/README.md`](fragments/README.md).
+
+> ### ⚠ None of these samples has a physical normalisation
+> The Z' modifies the trial cross section; the QCD samples are weighted by
+> construction; the graviton grid is a scan, not a spectrum. All are
+> **object-performance samples only** — never use them for rates or any
+> cross-section measurement.
+>
+> For the QCD samples specifically: the *unweighted* spectrum is the flat one
+> (uniform statistics per pT bin); any *physical* distribution must be filled
+> with `genWeight`, which spans ~8 orders of magnitude.
+
+Optional variants, not primary deliverables: `flatpT_Zprime_qq_fragment.py`
+(Z' flavour mix) and `BulkGravitonToHHTo4Q_...` (H → bb/cc/light mix, the
+merged-jet analogue of inclusive QCD for double-b mistag studies).
+
+## Method (Z')
 
 ```
 pp → ffbar → Z'(4 TeV) → b b̄        (Pythia8 2 → 1, NewGaugeBoson:ffbar2gmZZprime)
@@ -34,18 +74,22 @@ This follows the ATLAS flat-pT Z' approach; the hook is a (vibe-coded) port of
 cms-flatpt-bjets/
 ├── CLAUDE.md                    conventions: releases, containers, EOS, test-first workflow
 ├── userhook/                    ZprimeFlatpT CMSSW port + build instructions
-├── fragments/
-│   ├── flatpT_Zprime_bb_fragment.py   ← the deliverable (100% Z' → bb̄)
-│   └── flatpT_Zprime_qq_fragment.py   optional bb/cc/ss/uu/dd/gg mix
+├── fragments/                   all GEN fragments + mechanism notes
+│   ├── flatpT_Zprime_bb_fragment.py        Z' → bb̄  (primary)
+│   ├── flatpT_QCD_bb_fragment.py           QCD bb̄ flat
+│   ├── flatpT_QCD_incl_fragment.py         QCD inclusive flat
+│   └── BulkGravitonToHHTo4B_...cff.py      graviton multigridpack
+├── gridpacks/                   (mX, mH) grid, MadGraph cards, gridpack build
+│   └── grid.py                  ★ single source of truth for the grid
 ├── production/
-│   ├── env.sh                   ★ single point of configuration
-│   ├── setup.sh                 create releases + build the hook
+│   ├── env.sh                   ★ single point of configuration + select_sample
+│   ├── setup.sh                 create releases, build the hook, install fragments
 │   ├── steps/                   one script per cmsDriver step
 │   ├── test_local.sh            10 events, GEN-SIM
-│   └── run_fullchain.sh         ~100 events GEN → NanoAOD (--no-pileup option)
-├── calibration/                 two-pass flatness fit
+│   └── run_fullchain.sh         GEN → NanoAOD (--sample, --no-pileup)
+├── calibration/                 Z' two-pass flatness fit + QCD bias scan
 ├── condor/                      HTCondor submission for lxplus
-└── validation/                  NanoAOD-level checks
+└── validation/                  NanoAOD-level checks (generic + per-sample)
 ```
 
 ## Quick start
@@ -61,7 +105,8 @@ source production/setup.sh
 ./production/test_local.sh
 
 # 3. Full chain to NanoAODv15, no pileup (fast)
-./production/run_fullchain.sh --no-pileup
+./production/run_fullchain.sh --no-pileup                    # Z' (default)
+./production/run_fullchain.sh --sample qcd-bb --no-pileup    # any other sample
 
 # 4. Full chain with premixed pileup (needs a proxy)
 voms-proxy-init -rfc -voms cms -valid 192:00
@@ -149,9 +194,50 @@ To re-derive after changing beam energy, PDF or `MaxSHat`:
 REUSE_PASSA=1 ./calibration/calibrate.sh   # reuses Pass A, regenerates Pass B
 ```
 
+## QCD flatness tuning (`qcd-bb`, `qcd-incl`)
+
+The QCD samples flatten via `PhaseSpace:bias2SelectionPow`. The optimal
+exponent is process- and energy-dependent — 4.5 is the central value for
+inclusive QCD at 13 TeV, but the bb̄ 2 → 2 subprocess differs and we run at
+13.6 TeV — so it is **measured**, not inherited:
+
+```bash
+python3 calibration/tune_qcd_bias.py --powers 4 4.5 5 5.5 --nevents 20000
+```
+
+Each point is an independent GEN-only job; the script histograms the
+*unweighted* leading-jet pT spectrum, reports RMS/mean and the fitted slope for
+each exponent, and picks the flattest. Outputs land in `calibration/output_qcd/`
+(`bias_scan.pdf`, `bias_scan.json`).
+
+## Graviton gridpacks (`grav-hbb`)
+
+This sample needs MadGraph gridpacks — one per (mX, mH) point — before it can
+run. See [`gridpacks/README.md`](gridpacks/README.md) for the full workflow and
+the CMSSW mechanism details. In short:
+
+```bash
+python3 gridpacks/grid.py                    # inspect the grid (50 pilot points)
+python3 gridpacks/gen_cards.py               # cards for every point
+./gridpacks/make_gridpacks.sh --smoke        # ONE gridpack first
+./gridpacks/test_gridpack.sh <tarball> 10    # verify it runs
+./gridpacks/make_gridpacks.sh --all --submit # full grid (ask first)
+```
+
+`submit.sh --sample grav-hbb` refuses to submit unless **every** grid point has
+a gridpack, since a missing point only fails once it is randomly drawn.
+
+Key mechanism (verified in CMSSW_14_0_19): the gridpack is re-run **per
+luminosity block**, so `EVENTS_PER_LUMI` sets the events per grid point, and the
+point is recorded in `GenLumiInfoHeader` → NanoAOD `GenModel_*` branches.
+`Pythia8GeneratorFilter` is mandatory — the concurrent variant never calls
+`generateLHE`.
+
 ## Batch production
 
 lxplus HTCondor (not CRAB — there is no input dataset at GEN):
+
+All samples use the same submission, selected with `--sample`:
 
 ```bash
 # quick test: one short job
@@ -173,9 +259,28 @@ O(500–1000) events per job. MiniAOD + NanoAOD are staged to
 
 ## Validation
 
+Generic checks (any sample):
+
 ```bash
 python3 validation/validate_nanoaod.py <nano.root> [more.root ...]
 ```
+
+Sample-specific checks:
+
+```bash
+python3 validation/validate_samples.py --sample qcd-bb   <nano.root>
+python3 validation/validate_samples.py --sample grav-hbb <nano.root>
+python3 validation/validate_samples.py --compare zprime=a.root qcd-bb=b.root
+```
+
+- **QCD**: unweighted vs `genWeight`-weighted spectra (flat vs falling),
+  flavour fractions from `Jet_hadronFlavour`, and a gluon-splitting proxy from
+  `GenJet_nBHadrons` (≥2 B hadrons in one AK4 GenJet).
+- **Graviton**: (mX, mH) recovered per event from the `GenModel_*` branches,
+  ΔR(bb̄) vs H pT with the AK4/AK8 cones overlaid, double-b jet pT, and jet
+  mass vs mH closure.
+- **`--compare`**: cross-sample b-jet pT coverage and single-b vs double-b
+  content.
 
 Checks, with PDF plots and a text summary in `validation/output/`:
 

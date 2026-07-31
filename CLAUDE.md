@@ -36,6 +36,47 @@ tune CP5, PDF NNPDF3.1 NNLO.
 They are all centralised in `production/env.sh` and were copied from the
 reference repo. If something looks inconsistent, stop and ask rather than guess.
 
+## Sample options
+
+Four sample types, selected with `--sample`; `select_sample` in
+`production/env.sh` is the only place mapping type → SAMPLE + FRAGMENT.
+
+| `--sample` | what it is | needs |
+|---|---|---|
+| `zprime` | Z'→bb̄, flat √ŝ (default, validated) | `ZprimeFlatpTHook` built |
+| `qcd-bb` | flat-pT QCD, ME bb̄ | nothing extra |
+| `qcd-incl` | flat-pT inclusive QCD | nothing extra |
+| `grav-hbb` | BulkGraviton→HH→bbbb multigridpack | **all** gridpacks on EOS |
+
+**Do not modify the Z' code paths** — they are validated end to end on the
+batch system. New samples add fragments (and for the graviton, a gridpack
+stage) in front of the same unchanged chain.
+
+### env.sh must not clobber an inherited sample
+
+Sub-scripts source `env.sh` *after* inheriting a resolved sample from their
+caller. `env.sh` therefore resolves `SAMPLE`/`FRAGMENT` only when `SAMPLE` is
+unset. An unconditional `export SAMPLE=...` silently makes every sub-script
+fall back to the Z' fragment — this bug once wrote QCD content into
+`flatpT_Zprime_bb.py` in the release. If you touch `env.sh`, re-verify with:
+
+```bash
+bash -c 'source production/env.sh; select_sample qcd-bb; \
+         bash -c "source production/env.sh; echo \$SAMPLE"'   # must print flatPT_QCD_bb
+```
+
+### The graviton grid is per-lumi, not per-event
+
+`BaseHadronizer` re-runs the gridpack for **each luminosity block**, so
+`EVENTS_PER_LUMI` sets events per (mX, mH) point, and the point lands in
+`GenLumiInfoHeader` → NanoAOD `GenModel_*` branches. `Pythia8GeneratorFilter`
+is required; `ConcurrentGeneratorFilter` never calls `generateLHE`.
+
+## Branch names: verify, do not assume
+
+NanoAODv15 has `GenJet_nBHadrons` but **no** `Jet_nBHadrons`. Dump the branch
+list of a real file before writing analysis code against it.
+
 ## Single points of configuration
 
 - `production/env.sh` — releases, GTs, era, HLT menu, premix dataset, campaign
