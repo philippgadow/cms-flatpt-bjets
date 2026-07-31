@@ -38,6 +38,35 @@ def grid(mh_values=None, **kwargs):
     return [(mx, mh) for mx in mx_values(**kwargs) for mh in mhs]
 
 
+# Optional preset that populates the AK8 / transition band.  The pilot grid is
+# dominated by deeply-merged points (44 of 50 have dR < 0.4) because it pairs
+# light mH with mX up to 6 TeV.  Taggers are usually calibrated across the
+# dR ~ 0.4-0.8 transition, which the pilot barely samples; these heavier-mH,
+# lower-mX points fill it.  NOT enabled by default -- pass --preset transition
+# to gen_cards.py, or import TRANSITION_POINTS explicitly.
+# Chosen by solving 0.4 < 4*mH/mX < 0.8 (i.e. mH/mX in 0.1..0.2) per mX, rather
+# than guessed: a first guess of heavy mH at low mX overshot into "resolved".
+TRANSITION_POINTS = [
+    (600, 75), (600, 100),
+    (1200, 125), (1200, 200),
+    (1800, 200), (1800, 350),
+    (2400, 250), (2400, 350),
+    (3000, 350), (3000, 500),
+    (4200, 500), (4200, 750),
+    (6000, 750), (6000, 1000),
+]
+
+
+def with_transition(**kwargs):
+    """Pilot grid plus the transition-region points, de-duplicated."""
+    seen, out = set(), []
+    for pt in grid(**kwargs) + TRANSITION_POINTS:
+        if pt not in seen:
+            seen.add(pt)
+            out.append(pt)
+    return out
+
+
 def densify(mx_step=300, mh_values=None):
     """
     A denser grid, for when the pilot production is validated.
@@ -59,14 +88,30 @@ def dr_bb_estimate(mx, mh):
     return 4.0 * mh / float(mx)
 
 
+def regime(mx, mh):
+    dr = dr_bb_estimate(mx, mh)
+    return "AK4-merged" if dr < 0.4 else "AK8-merged" if dr < 0.8 else "resolved"
+
+
 if __name__ == "__main__":
-    points = grid()
+    import collections
+    import sys
+
+    points = with_transition() if "--transition" in sys.argv else grid()
     print("grid: %d points  (mX %s..%s step %s, mH %s)"
           % (len(points), MX_MIN, MX_MAX, MX_STEP, MH_VALUES))
     print()
     print("%-8s %-6s %-10s %s" % ("mX", "mH", "dR(bb)~", "regime"))
     for mx, mh in points:
-        dr = dr_bb_estimate(mx, mh)
-        regime = ("AK4-merged" if dr < 0.4 else
-                  "AK8-merged" if dr < 0.8 else "resolved")
-        print("%-8d %-6d %-10.3f %s" % (mx, mh, dr, regime))
+        print("%-8d %-6d %-10.3f %s"
+              % (mx, mh, dr_bb_estimate(mx, mh), regime(mx, mh)))
+
+    counts = collections.Counter(regime(mx, mh) for mx, mh in points)
+    print()
+    print("regime breakdown (%d points):" % len(points))
+    for name in ("AK4-merged", "AK8-merged", "resolved"):
+        print("  %-12s %3d" % (name, counts.get(name, 0)))
+    if "--transition" not in sys.argv:
+        print()
+        print("note: the pilot grid is dominated by deeply-merged points.")
+        print("      run with --transition to see the transition-band preset.")

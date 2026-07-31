@@ -32,9 +32,17 @@ def main():
     ap.add_argument("--outdir", default=os.path.join(HERE, "cards_generated"))
     ap.add_argument("--dense", action="store_true",
                     help="use the denser grid (mX step 300) instead of the pilot")
+    ap.add_argument("--transition", action="store_true",
+                    help="add the AK8/transition-band points (dR 0.4-0.8), which "
+                         "the pilot grid barely samples")
     args = ap.parse_args()
 
-    points = gridmod.densify() if args.dense else gridmod.grid()
+    if args.dense:
+        points = gridmod.densify()
+    elif args.transition:
+        points = gridmod.with_transition()
+    else:
+        points = gridmod.grid()
 
     missing = [s for s in SUFFIXES
                if not os.path.exists(os.path.join(TEMPLATE_DIR, TEMPLATE_BASE + s))]

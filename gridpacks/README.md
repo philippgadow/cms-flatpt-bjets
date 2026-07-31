@@ -46,9 +46,19 @@ each production request manageable — physics-wise it is one grid.
 
 > ⚠️ **The pilot grid is heavily skewed to the merged regime**: 44 of the 50
 > points have ΔR < 0.4 (AK4-merged), only 3 land in 0.4 < ΔR < 0.8 (AK8) and 3
-> are resolved. That follows from pairing light mH with mX up to 6 TeV. If the
-> goal includes the *transition* region where taggers are calibrated, add
-> higher-mH / lower-mX points — e.g. mH 250–500 at mX 600–1800.
+> are resolved. That follows from pairing light mH with mX up to 6 TeV.
+>
+> Merged double-b is the stated goal, so this is not wrong — but taggers are
+> usually calibrated across the ΔR ≈ 0.4–0.8 transition, which the pilot barely
+> samples. An opt-in preset fills it (AK8 points 3 → 15, pilot untouched):
+>
+> ```bash
+> python3 gridpacks/grid.py --transition        # inspect
+> python3 gridpacks/gen_cards.py --transition   # 62 points instead of 50
+> ```
+>
+> The added points come from solving 0.4 < 4·mH/mX < 0.8 per mX, not from
+> guesswork. **Off by default** — enabling it costs 12 more gridpacks.
 
 ## Workflow
 
