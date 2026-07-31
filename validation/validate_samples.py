@@ -5,7 +5,7 @@ Sample-specific NanoAOD validation for the flat-pT b-jet sample options.
   qcd-bb / qcd-incl
       * unweighted vs genWeight-weighted jet pT spectra (flat vs falling)
       * flavour composition vs pT from Jet_hadronFlavour (5 / 4 / 0)
-      * gluon-splitting proxy: AK4 jets containing TWO b hadrons vs one
+      * gluon-splitting proxy: AK4 GenJets containing TWO b hadrons vs one
 
   grav-hbb
       * per-event (mX, mH) recovered from the GenModel_* branches
@@ -37,9 +37,9 @@ import ROOT
 
 ROOT.gROOT.SetBatch(True)
 
-# Count B hadrons per jet by matching GenPart b hadrons to jets in dR.
-# Jet_nBHadrons exists in NanoAOD for MC and is the direct quantity, so prefer
-# it when present and fall back to the GenPart match only if it is missing.
+# NanoAODv15 stores B-hadron counts on GEN jets (GenJet_nBHadrons,
+# GenJetAK8_nBHadrons, SubJet_nBHadrons) -- there is NO reco Jet_nBHadrons.
+# Verified by dumping the branch list of a produced NanoAOD file.
 CPP = r"""
 #ifndef FLATPT_SAMPLES_HELPERS
 #define FLATPT_SAMPLES_HELPERS
@@ -141,12 +141,12 @@ def validate_qcd(files, outdir, lines, jetptmax=3000.0):
     h_l = d.Histo1D(("h_l", "light jets;jet p_{T} [GeV];jets/bin", NB, 0, jetptmax), "lJet_pt")
 
     # Gluon-splitting proxy: jets with >=2 B hadrons vs exactly 1.
-    have_nb = has_branch(files[0], "Jet_nBHadrons")
+    have_nb = has_branch(files[0], "GenJet_nBHadrons")
     if have_nb:
-        dd = (d.Define("n1b", "Sum(Jet_nBHadrons == 1)")
-                .Define("n2b", "Sum(Jet_nBHadrons >= 2)")
-                .Define("pt1b", "Jet_pt[Jet_nBHadrons == 1]")
-                .Define("pt2b", "Jet_pt[Jet_nBHadrons >= 2]"))
+        dd = (d.Define("n1b", "Sum(GenJet_nBHadrons == 1)")
+                .Define("n2b", "Sum(GenJet_nBHadrons >= 2)")
+                .Define("pt1b", "GenJet_pt[GenJet_nBHadrons == 1]")
+                .Define("pt2b", "GenJet_pt[GenJet_nBHadrons >= 2]"))
         n1 = dd.Sum("n1b").GetValue()
         n2 = dd.Sum("n2b").GetValue()
         h_1b = dd.Histo1D(("h_1b", "1 B hadron;jet p_{T} [GeV];jets", NB, 0, jetptmax), "pt1b")
@@ -192,9 +192,9 @@ def validate_qcd(files, outdir, lines, jetptmax=3000.0):
         say("  jets with exactly 1 B hadron : %d" % n1)
         say("  jets with >=2 B hadrons      : %d  (%.1f%% of b-containing jets)"
             % (n2, 100.0 * n2 / (n1 + n2) if (n1 + n2) else float("nan")))
-        say("  (>=2 B hadrons in one AK4 jet is the gluon-splitting / merged topology)")
+        say("  (>=2 B hadrons in one AK4 GenJet = gluon-splitting / merged topology)")
     else:
-        say("  Jet_nBHadrons not present in this file -- skipped")
+        say("  GenJet_nBHadrons not present in this file -- skipped")
 
     plots = [save(h_unw, "qcd_leadjet_pt_unweighted", outdir),
              save(h_wgt, "qcd_leadjet_pt_weighted", outdir, logy=True)]
@@ -322,15 +322,15 @@ def validate_graviton(files, outdir, lines):
     plots.append(save(p_dr, "grav_dRbb_vs_HpT", outdir, opt="e"))
 
     # Double-b jets vs pT: the boosted H(bb) signature.
-    if has_branch(files[0], "Jet_nBHadrons"):
-        dd = (d.Define("pt2b", "Jet_pt[Jet_nBHadrons >= 2]")
-                .Define("pt1b", "Jet_pt[Jet_nBHadrons == 1]"))
-        n2 = dd.Define("n2", "Sum(Jet_nBHadrons >= 2)").Sum("n2").GetValue()
-        n1 = dd.Define("n1", "Sum(Jet_nBHadrons == 1)").Sum("n1").GetValue()
+    if has_branch(files[0], "GenJet_nBHadrons"):
+        dd = (d.Define("pt2b", "GenJet_pt[GenJet_nBHadrons >= 2]")
+                .Define("pt1b", "GenJet_pt[GenJet_nBHadrons == 1]"))
+        n2 = dd.Define("n2", "Sum(GenJet_nBHadrons >= 2)").Sum("n2").GetValue()
+        n1 = dd.Define("n1", "Sum(GenJet_nBHadrons == 1)").Sum("n1").GetValue()
         say("")
         say("──── double-b AK4 jets (boosted H(bb) signature) ────")
-        say("  jets with >=2 B hadrons : %d" % n2)
-        say("  jets with  1 B hadron   : %d" % n1)
+        say("  GenJets with >=2 B hadrons : %d" % n2)
+        say("  GenJets with  1 B hadron   : %d" % n1)
         if n1 + n2:
             say("  double-b fraction       : %.1f%%" % (100.0 * n2 / (n1 + n2)))
         h2 = dd.Histo1D(("h2b", ";jet p_{T} [GeV];jets with #geq2 B hadrons",
@@ -338,7 +338,7 @@ def validate_graviton(files, outdir, lines):
         plots.append(save(h2, "grav_doubleb_jet_pt", outdir))
 
         # Jet mass vs mH closure, for the merged (double-b) jets.
-        dm = dd.Define("m2b", "Jet_mass[Jet_nBHadrons >= 2]")
+        dm = dd.Define("m2b", "GenJet_mass[GenJet_nBHadrons >= 2]")
         hm = dm.Histo1D(("hm", ";mass of #geq2-B-hadron jet [GeV];jets",
                          60, 0, 300), "m2b")
         say("  <mass> of double-b jets : %.1f GeV" % hm.GetValue().GetMean())
@@ -370,9 +370,9 @@ def compare(pairs, outdir, lines):
             h.Scale(1.0 / h.Integral())
         hists_pt.append((label, h))
 
-        if has_branch(path, "Jet_nBHadrons"):
-            n1 = df.Define("n1", "Sum(Jet_nBHadrons == 1)").Sum("n1").GetValue()
-            n2 = df.Define("n2", "Sum(Jet_nBHadrons >= 2)").Sum("n2").GetValue()
+        if has_branch(path, "GenJet_nBHadrons"):
+            n1 = df.Define("n1", "Sum(GenJet_nBHadrons == 1)").Sum("n1").GetValue()
+            n2 = df.Define("n2", "Sum(GenJet_nBHadrons >= 2)").Sum("n2").GetValue()
             frac = 100.0 * n2 / (n1 + n2) if (n1 + n2) else float("nan")
             hists_db.append((label, n1, n2, frac))
 
