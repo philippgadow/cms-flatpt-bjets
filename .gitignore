@@ -6,6 +6,7 @@ fullchain_*/
 calibration/output/
 validation/output/
 condor/logs/
+crab/work/
 __pycache__/
 
 # Never commit credentials: stray Kerberos ticket caches have appeared here

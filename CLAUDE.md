@@ -72,6 +72,40 @@ bash -c 'source production/env.sh; select_sample qcd-bb; \
 `GenLumiInfoHeader` → NanoAOD `GenModel_*` branches. `Pythia8GeneratorFilter`
 is required; `ConcurrentGeneratorFilter` never calls `generateLHE`.
 
+## Batch backends: condor and CRAB
+
+`condor/` (validated default) and `crab/` run the same payload
+(`run_fullchain.sh`). CRAB uses `PrivateMC` + `scriptExe` (`crab/crab_job.sh`)
+because there is no input dataset at GEN. Key mechanics:
+
+- The CRAB **sandbox is packed from the GEN-SIM release area**, which is how
+  the built hook and fragment reach the worker node — so `production/setup.sh`
+  must have run first. `crab/submit.sh` enters the GEN-SIM env itself
+  (`setup_release`, then the CRAB client) before `crab submit`. The DR/Mini
+  releases are scram-projected from cvmfs on the worker node.
+- scriptExe jobs must hand CRAB a `FrameworkJobReport.xml`; `crab_job.sh`
+  generates it by running the trivial `crab/PSet.py` through cmsRun at the end.
+- Seeds are `seedbase + CRAB_Id`, **1-based** (condor's ProcId is 0-based).
+  Resubmitted jobs keep their `CRAB_Id`, hence their seed.
+- `grav-hbb` on CRAB: grid worker nodes cannot mount `/eos/user`, so each job
+  downloads the **full** gridpack set over xrootd
+  (`root://eosuser.cern.ch/$GRIDPACK_EOS`, override with `--gridpack-url`) and
+  points `GRIDPACK_EOS` at the local copy before the chain runs. Submission
+  enforces the same all-points-present check as condor.
+- Publication (`--publish`, DBS phys03, mini + nano): CRAB publishes the
+  output `<File>` sections of the job's `FrameworkJobReport.xml`. Steps 3/4
+  support an opt-in env (`FLATPT_FJR_MINI`/`FLATPT_FJR_NANO`) that switches
+  cmsDriver to `--no_exec` + `cmsRun -e -j <fjr>`; `crab_job.sh` sets them and
+  merges the two reports with `crab/merge_fjr.py`, which must also rewrite the
+  output `<PFN>`s to the stage-out dir and drop `<InputFile>` sections — CRAB's
+  post-processing stats every PFN in the report, and the original paths point
+  at chain intermediates that are deleted before stage-out. It also sets
+  `FLATPT_FIRSTLUMI`/`FLATPT_FIRSTEVENT` (consumed by step0) for unique
+  (lumi, event) ids across jobs. All of these env vars are unset on
+  condor/local, where the steps behave byte-identically to before — which
+  also means condor output has duplicate event ids and is not publishable.
+- CRAB max runtime is 2750 min (~46 h) — keep premix jobs at O(500) events.
+
 ## Branch names: verify, do not assume
 
 NanoAODv15 has `GenJet_nBHadrons` but **no** `Jet_nBHadrons`. Dump the branch

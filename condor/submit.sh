@@ -2,9 +2,9 @@
 #
 # Submit the flat-pT b-jet production to lxplus HTCondor.
 #
-# There is no input dataset at GEN, so this uses plain HTCondor rather than
-# CRAB.  Each job generates its own events with a distinct seed and stages
-# MiniAOD + NanoAOD out to EOS.
+# Each job generates its own events with a distinct seed and stages
+# MiniAOD + NanoAOD out to EOS.  For the CRAB variant of the same chain
+# (grid-wide capacity, PrivateMC + scriptExe) see crab/submit.sh.
 #
 # Usage:
 #   ./submit.sh --njobs N --nevents M [options]

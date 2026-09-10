@@ -89,6 +89,7 @@ cms-flatpt-bjets/
 │   └── run_fullchain.sh         GEN → NanoAOD (--sample, --no-pileup)
 ├── calibration/                 Z' two-pass flatness fit + QCD bias scan
 ├── condor/                      HTCondor submission for lxplus
+├── crab/                        CRAB submission (PrivateMC + scriptExe)
 └── validation/                  NanoAOD-level checks (generic + per-sample)
 ```
 
@@ -245,8 +246,9 @@ python3 gridpacks/gen_cards.py               # cards for every point
 ./gridpacks/make_gridpacks.sh --all --submit # full grid (ask first)
 ```
 
-`submit.sh --sample grav-hbb` refuses to submit unless **every** grid point has
-a gridpack, since a missing point only fails once it is randomly drawn.
+Both `condor/submit.sh` and `crab/submit.sh` refuse to submit `--sample
+grav-hbb` unless **every** grid point has a gridpack, since a missing point
+only fails once it is randomly drawn.
 
 Key mechanism (verified in CMSSW_14_0_19): the gridpack is re-run **per
 luminosity block**, so `EVENTS_PER_LUMI` sets the events per grid point, and the
@@ -256,7 +258,12 @@ point is recorded in `GenLumiInfoHeader` → NanoAOD `GenModel_*` branches.
 
 ## Batch production
 
-lxplus HTCondor (not CRAB — there is no input dataset at GEN):
+Two backends run the same per-job payload (`run_fullchain.sh`): lxplus
+**HTCondor** (validated default) and **CRAB** (grid-wide capacity). There is no
+input dataset at GEN, so CRAB runs in `PrivateMC` mode with a `scriptExe` that
+executes the full multi-release chain on the worker node.
+
+### HTCondor (lxplus)
 
 All samples use the same submission, selected with `--sample`:
 
@@ -277,6 +284,86 @@ Seeds are `seedbase + ProcId`, so every job differs; pass a fresh `--seedbase`
 when topping up an existing sample. Default flavour `testmatch` (3 days) suits
 O(500–1000) events per job. MiniAOD + NanoAOD are staged to
 `$EOS_OUTDIR/<TAG>/`; intermediates are deleted.
+
+### CRAB
+
+Same interface, same pre-flight checks, all four samples via `--sample`.
+Requires a VOMS proxy and `production/setup.sh` run beforehand — the CRAB
+sandbox is packed from the GEN-SIM release area, which is how the
+`ZprimeFlatpT` hook and the fragment reach the worker node. The other releases
+are created there from cvmfs.
+
+```bash
+voms-proxy-init -rfc -voms cms -valid 192:00
+
+# quick test: one short job
+./crab/submit.sh --njobs 1 --nevents 20 --no-pileup
+
+# real submission: 100k Z' events
+./crab/submit.sh --njobs 200 --nevents 500
+
+# other samples
+./crab/submit.sh --njobs 200 --nevents 500 --sample qcd-bb
+./crab/submit.sh --njobs 200 --nevents 500 --sample qcd-incl
+./crab/submit.sh --njobs 200 --nevents 500 --sample grav-hbb
+
+./crab/status.sh                      # list tasks
+./crab/status.sh <TASK>               # crab status of one task
+./crab/status.sh <TASK> --merge       # merge NanoAOD output (CERNBox)
+crab resubmit -d crab/work/<TASK>/crab_*   # resubmit failed jobs
+```
+
+Differences from HTCondor:
+
+- Seeds are `seedbase + CRAB_Id` and CRAB job ids are **1-based**
+  (`seedbase+1 .. seedbase+N`, vs `seedbase+0 ..` on condor). As always, pass a
+  fresh `--seedbase` when topping up an existing sample.
+- Output goes to `Site.storageSite` (default `T3_CH_CERNBOX`) under
+  `/store/user/$USER/cms-flatpt-bjets/crab/<dataset>/<tag>/...`, i.e. on
+  `/eos/user` next to the condor output; override with `--site` / `--outlfn`.
+- CRAB caps the job runtime at 2750 min (~46 h, vs 3 days for `testmatch`), so
+  keep premix jobs at O(500) events or fewer.
+- For `grav-hbb`, grid worker nodes cannot mount `/eos/user`, so **every job
+  first downloads the full gridpack set** (all grid points, typically a few
+  GB) over xrootd from `$GRIDPACK_EOS` (override the location with
+  `--gridpack-url`). Submission enforces the same all-points-present check as
+  condor. With ~50 points this per-job overhead is acceptable; condor remains
+  the cheaper backend for this sample.
+- A resubmitted CRAB job reuses its `CRAB_Id` and therefore its seed — safe.
+
+#### Publication (DBS phys03)
+
+Pass `--publish` to publish **both MiniAOD and NanoAOD** as private datasets
+that anyone in CMS can find in DAS and run over with CRAB:
+
+```bash
+./crab/submit.sh --njobs 2000 --nevents 500 --site T2_DE_DESY \
+                 --publish --tag NoXsecPerformanceOnly
+```
+
+They appear (after the transfers finish) as
+`/flatpT_Zprime_bb/<user>-RunIII2024Summer24_<tag>_<timestamp>-<hash>/USER`
+in the `prod/phys03` DBS instance; check with `crab status --long` or DAS.
+Mechanics and caveats:
+
+- Publication uses the framework job reports of the actual Mini/Nano cmsRun
+  steps: `crab_job.sh` has steps 3–4 write their reports (`FLATPT_FJR_*`) and
+  merges them into one `FrameworkJobReport.xml` (`crab/merge_fjr.py`), as if a
+  single cmsRun had produced both outputs. The two datasets stay apart via the
+  distinct output module labels.
+- CRAB jobs get **unique (lumi, event) ranges** (`FLATPT_FIRSTLUMI/FIRSTEVENT`,
+  strides of 10000 lumis and `nevents` events per job), so the published
+  datasets contain no duplicate event ids. Condor/local runs are unchanged
+  (every job starts at lumi 1, event 1) — condor output is therefore **not**
+  publishable as-is.
+- The published files live on (and must stay on) the storage site's
+  LocalGroupDisk; deleting them breaks the dataset for everyone.
+- **Verify publication with the 1-job smoke test first** (two datasets in DAS,
+  event counts correct) before a large submission — the multi-output scriptExe
+  publication path is exercised there for the first time.
+- These samples have **no physical normalisation** — keep a marker like
+  `NoXsecPerformanceOnly` in the tag so nobody mistakes them for a physics
+  sample.
 
 ## Validation
 

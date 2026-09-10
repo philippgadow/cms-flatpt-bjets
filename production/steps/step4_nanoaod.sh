@@ -20,19 +20,30 @@ echo "━━━ STEP 4: NanoAODv15 ($CMSSW_MINI) ━━━"
 
 setup_release "$CMSSW_MINI"
 
-cmsDriver.py \
-    --python_filename "${CAMPAIGN_NANO}_cfg.py" \
-    --eventcontent NANOAODSIM \
-    --customise Configuration/DataProcessing/Utils.addMonitoring \
-    --datatier NANOAODSIM \
-    --filein "file:${INFILE}" \
-    --fileout "file:${OUTFILE}" \
-    --conditions "$GT_MINI" \
-    --step NANO \
-    --era "$ERA" \
-    --scenario pp \
-    --mc \
-    --nThreads "$NTHREADS" \
+DRIVER_ARGS=(
+    --python_filename "${CAMPAIGN_NANO}_cfg.py"
+    --eventcontent NANOAODSIM
+    --customise Configuration/DataProcessing/Utils.addMonitoring
+    --datatier NANOAODSIM
+    --filein "file:${INFILE}"
+    --fileout "file:${OUTFILE}"
+    --conditions "$GT_MINI"
+    --step NANO
+    --era "$ERA"
+    --scenario pp
+    --mc
+    --nThreads "$NTHREADS"
     -n "$NEVENTS"
+)
+
+# CRAB publication needs the framework job report of the cmsRun that produced
+# the output.  When FLATPT_FJR_NANO is set (by crab/crab_job.sh), generate the
+# config only and run cmsRun ourselves with -j; the default path is unchanged.
+if [ -n "${FLATPT_FJR_NANO:-}" ]; then
+    cmsDriver.py "${DRIVER_ARGS[@]}" --no_exec
+    cmsRun -e -j "$FLATPT_FJR_NANO" "${CAMPAIGN_NANO}_cfg.py"
+else
+    cmsDriver.py "${DRIVER_ARGS[@]}"
+fi
 
 echo "  ✓ NanoAOD: $(ls -lh "$OUTFILE" | awk '{print $5}')"

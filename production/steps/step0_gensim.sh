@@ -59,6 +59,19 @@ else
     popd > /dev/null
 fi
 
+CUSTOM_CMDS="process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(${EVENTS_PER_LUMI:-100})\nprocess.RandomNumberGeneratorService.generator.initialSeed=${SEED}"
+
+# Optional per-job lumi/event offsets (set by crab/crab_job.sh) so that a
+# multi-job sample has no duplicate (run, lumi, event) ids -- required for a
+# publishable dataset.  Unset (the condor/local default) leaves the standard
+# behaviour: every job starts at lumi 1, event 1.
+if [ -n "${FLATPT_FIRSTLUMI:-}" ]; then
+    CUSTOM_CMDS="${CUSTOM_CMDS}\nprocess.source.firstLuminosityBlock=cms.untracked.uint32(${FLATPT_FIRSTLUMI})"
+fi
+if [ -n "${FLATPT_FIRSTEVENT:-}" ]; then
+    CUSTOM_CMDS="${CUSTOM_CMDS}\nprocess.source.firstEvent=cms.untracked.uint32(${FLATPT_FIRSTEVENT})"
+fi
+
 cmsDriver.py "Configuration/GenProduction/python/${FRAG_NAME}.py" \
     --python_filename "${CAMPAIGN_GS}_cfg.py" \
     --eventcontent RAWSIM \
@@ -71,7 +84,7 @@ cmsDriver.py "Configuration/GenProduction/python/${FRAG_NAME}.py" \
     --geometry DB:Extended \
     --era "$ERA" \
     --nThreads "$NTHREADS" \
-    --customise_commands "process.source.numberEventsInLuminosityBlock=cms.untracked.uint32(${EVENTS_PER_LUMI:-100})\nprocess.RandomNumberGeneratorService.generator.initialSeed=${SEED}" \
+    --customise_commands "$CUSTOM_CMDS" \
     --mc \
     -n "$NEVENTS"
 
