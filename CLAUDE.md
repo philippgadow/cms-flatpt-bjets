@@ -84,7 +84,9 @@ because there is no input dataset at GEN. Key mechanics:
   (`setup_release`, then the CRAB client) before `crab submit`. The DR/Mini
   releases are scram-projected from cvmfs on the worker node.
 - scriptExe jobs must hand CRAB a `FrameworkJobReport.xml`; `crab_job.sh`
-  generates it by running the trivial `crab/PSet.py` through cmsRun at the end.
+  assembles it from the real Mini/Nano cmsRun reports (see Publication below).
+  `crab/PSet.py` is never executed in the job — it exists for the CRAB client's
+  submit-time validation and output declaration only.
 - Seeds are `seedbase + CRAB_Id`, **1-based** (condor's ProcId is 0-based).
   Resubmitted jobs keep their `CRAB_Id`, hence their seed.
 - `grav-hbb` on CRAB: grid worker nodes cannot mount `/eos/user`, so each job
@@ -92,7 +94,17 @@ because there is no input dataset at GEN. Key mechanics:
   (`root://eosuser.cern.ch/$GRIDPACK_EOS`, override with `--gridpack-url`) and
   points `GRIDPACK_EOS` at the local copy before the chain runs. Submission
   enforces the same all-points-present check as condor.
-- Publication (`--publish`, DBS phys03, mini + nano): CRAB publishes the
+- Publication (`--publish`, DBS phys03, mini + nano) needs BOTH halves:
+  **(a)** `crab/PSet.py` must declare the two outputs as EDM output modules on
+  scheduled EndPaths (`MINIAODSIMoutput` / `NANOAODSIMoutput`, each with
+  `dataset.filterName`). The CRAB *client* decides publishability at submit
+  time by inspecting the PSet — files listed only in `JobType.outputFiles`
+  (with `disableAutomaticOutputCollection`) are "additional files": transferred
+  but NEVER published, and the task silently gets a
+  `/FakeDataset/fakefile-FakePublish-.../USER` placeholder. Check `crab.log`
+  for `The following EDM output files will be collected: [...]` being
+  non-empty right after submitting — it is the only early warning.
+  **(b)** at runtime CRAB publishes the
   output `<File>` sections of the job's `FrameworkJobReport.xml`. Steps 3/4
   support an opt-in env (`FLATPT_FJR_MINI`/`FLATPT_FJR_NANO`) that switches
   cmsDriver to `--no_exec` + `cmsRun -e -j <fjr>`; `crab_job.sh` sets them and

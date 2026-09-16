@@ -346,11 +346,30 @@ They appear (after the transfers finish) as
 in the `prod/phys03` DBS instance; check with `crab status --long` or DAS.
 Mechanics and caveats:
 
-- Publication uses the framework job reports of the actual Mini/Nano cmsRun
-  steps: `crab_job.sh` has steps 3–4 write their reports (`FLATPT_FJR_*`) and
-  merges them into one `FrameworkJobReport.xml` (`crab/merge_fjr.py`), as if a
-  single cmsRun had produced both outputs. The two datasets stay apart via the
-  distinct output module labels.
+- Publishability is decided by the CRAB **client, at submission time**, from
+  `crab/PSet.py`: it declares the two outputs as EDM output modules
+  (`MINIAODSIMoutput` / `NANOAODSIMoutput`) on scheduled EndPaths, each with a
+  `dataset.filterName`. Without that declaration the files are transferred but
+  silently never published (the task shows a
+  `/FakeDataset/fakefile-FakePublish-…/USER` placeholder forever). The PSet is
+  never executed in the job — it only tells the client what to expect, and its
+  filenames follow `--sample` via `production/env.sh`.
+- **Check this immediately after submitting**, in
+  `crab/work/<TASK>/crab_*/crab.log`:
+
+  ```bash
+  grep "EDM output files will be collected" crab/work/<TASK>/crab_*/crab.log
+  ```
+
+  It must list **both** ROOT files. An empty `[]` (or a "will not be published,
+  as they are not EDM files" warning) means the task will never publish — kill
+  it and fix the PSet rather than waiting days for DAS.
+- At runtime, publication uses the framework job reports of the actual
+  Mini/Nano cmsRun steps: `crab_job.sh` has steps 3–4 write their reports
+  (`FLATPT_FJR_*`) and merges them into one `FrameworkJobReport.xml`
+  (`crab/merge_fjr.py`), rewriting the output PFNs to the stage-out directory
+  and dropping `<InputFile>` sections — CRAB stats every PFN in the report, and
+  the originals point at deleted chain intermediates.
 - CRAB jobs get **unique (lumi, event) ranges** (`FLATPT_FIRSTLUMI/FIRSTEVENT`,
   strides of 10000 lumis and `nevents` events per job), so the published
   datasets contain no duplicate event ids. Condor/local runs are unchanged
@@ -358,9 +377,9 @@ Mechanics and caveats:
   publishable as-is.
 - The published files live on (and must stay on) the storage site's
   LocalGroupDisk; deleting them breaks the dataset for everyone.
-- **Verify publication with the 1-job smoke test first** (two datasets in DAS,
-  event counts correct) before a large submission — the multi-output scriptExe
-  publication path is exercised there for the first time.
+- **Verify publication with the 1-job smoke test first**: the `crab.log` grep
+  above at submission time, then two datasets in DAS with the right event
+  counts before a large submission.
 - These samples have **no physical normalisation** — keep a marker like
   `NoXsecPerformanceOnly` in the tag so nobody mistakes them for a physics
   sample.

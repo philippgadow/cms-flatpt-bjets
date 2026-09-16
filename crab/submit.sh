@@ -216,8 +216,8 @@ config.JobType.scriptArgs = ['nevents=$NEVENTS',
                              'nthreads=$NTHREADS'$GRIDPACK_SCRIPTARG]
 config.JobType.inputFiles = ['$WORKDIR/flatpt_repo.tar.gz',
                              '$SCRIPT_DIR/merge_fjr.py']
-config.JobType.disableAutomaticOutputCollection = True
-config.JobType.outputFiles = ['$MINI_FILE', '$NANO_FILE']
+# The two outputs are declared as EDM output modules in PSet.py, so CRAB
+# collects them automatically AND treats them as publishable.
 config.JobType.numCores = $NTHREADS
 config.JobType.maxMemoryMB = $(( NTHREADS * 2000 ))
 config.JobType.maxJobRuntimeMin = $RUNTIME
